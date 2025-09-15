@@ -102,3 +102,102 @@ Status: 201
 ---
 
 This README is intended as a brief reference for the `/users/register` endpoint in this project. If you'd like, I can add automated example requests (Postman collection or Swagger/OpenAPI) next.
+
+## Login endpoint
+
+POST /users/login
+
+- Description: Authenticate an existing user. The endpoint checks the provided email and password, and if valid returns the user object (without the password) and a JWT token.
+
+## Request
+
+- Content-Type: application/json
+
+- Body schema:
+  {
+    "email": "string (valid email, required)",
+    "password": "string (required)"
+  }
+
+- Validation rules (as enforced by the route):
+  - `email` must be a valid email.
+  - `password` must be present (non-empty).
+
+## Responses / Status codes
+
+- 200 OK
+  - When authentication succeeds. Response body:
+    {
+      "user": { /* user object without password */ },
+      "token": "<jwt token>"
+    }
+
+- 400 Bad Request
+  - When input validation fails. Returns an `errors` array from `express-validator`.
+
+- 401 Unauthorized
+  - When credentials are invalid (email not found or password mismatch). Response body example:
+    {
+      "message": "Invalid email or password"
+    }
+
+## Example request (curl)
+
+```bash
+curl -X POST http://localhost:3000/users/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.doe@example.com",
+    "password": "supersecret"
+  }'
+```
+
+## Example successful response
+
+Status: 200
+
+```json
+{
+  "user": {
+    "_id": "64f...",
+    "fullname": { "firstname": "Jane", "lastname": "Doe" },
+    "email": "jane.doe@example.com",
+    "socketId": null
+  },
+  "token": "<jwt token here>"
+}
+```
+
+## Notes
+
+- The login flow fetches the user with `.select('+password')` so the hashed password is available for comparison. Passwords are compared using bcrypt (`user.comparePassword`).
+- On success the endpoint returns a JWT signed with `process.env.JWT_SECRET`.
+
+## Profile endpoint
+
+GET /users/profile
+
+- Description: Returns the authenticated user's profile. This route is protected; the request must include a valid JWT either as a cookie named `token` or in the `Authorization: Bearer <token>` header.
+
+- Authentication: Required (uses `authMiddleware.authUser`).
+
+- Responses:
+  - 200 OK — returns the user object (password excluded).
+  - 401 Unauthorized — when token is missing or invalid.
+
+## Logout endpoint
+
+GET /users/logout
+
+- Description: Logs out the authenticated user. The route clears the `token` cookie and attempts to add the token to a blacklist collection so that it can't be reused.
+
+- Authentication: Required (uses `authMiddleware.authUser`).
+
+- Responses:
+  - 200 OK — when logout succeeds. Returns { message: 'Logged out successfully' }.
+  - 500 Internal Server Error — when blacklisting the token fails.
+
+- Notes:
+  - The server reads the token from the cookie (`token`) or the `Authorization` header. It attempts to persist the token in the `BlacklistToken` collection (with a TTL configured in the model).
+  - If you see errors like `blacklistTokenModel.create is not a function`, ensure that `models/blacklistToken.model.js` exports the Mongoose model and there are no circular requires replacing the export at runtime.
+
