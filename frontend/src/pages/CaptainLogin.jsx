@@ -1,19 +1,44 @@
 import React from 'react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-
+import {useNavigate} from 'react-router-dom'
+import axios from 'axios'
+import { CaptainDataContext } from '../context/CaptainContext'
 const Captainlogin = () => {
-    const [email, setEmail] = useState("");
-      const [password, setPassword] = useState("");
-      const [userData,setUserData]=useState({});
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { captain, setCaptain } = React.useContext(CaptainDataContext);
+    const navigate = useNavigate();
     
-    
-    
-      const submitHandler = (e) => {
+      const submitHandler = async (e) => {
         e.preventDefault();
-        setUserData({email:email,password:password});
-        setEmail("");
-        setPassword("");
+        setError('');
+        setLoading(true);
+        try {
+          const captain = { email: email, password: password };
+          // backend route: POST /captain/login
+          const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/captain/login`, captain);
+          if (response.status === 200) {
+            const data = response.data;
+            setCaptain(data.captain);
+            localStorage.setItem('token', data.token);
+            navigate('/captain-home');
+          }
+          setEmail("");
+          setPassword("");
+        } catch (err) {
+          console.error('Captain login error', err);
+          const resp = err?.response?.data;
+          if (resp) {
+            setError(resp.message || (Array.isArray(resp.errors) ? resp.errors.map(e=>e.msg||e.message).join('; ') : JSON.stringify(resp)));
+          } else {
+            setError('Failed to login. Check credentials and try again.');
+          }
+        } finally {
+          setLoading(false);
+        }
       }
     
   return (
@@ -47,8 +72,9 @@ const Captainlogin = () => {
             }}
           />
 
-          <button className="text-white font-semibold mb-3 bg-black rounded px-4 py-2 border w-full text-lg placeholder:text-base">
-            Login
+          {error && <p className="text-red-500 mb-2">{error}</p>}
+          <button type="submit" disabled={loading} className="text-white font-semibold mb-3 bg-black rounded px-4 py-2 border w-full text-lg placeholder:text-base">
+            {loading ? 'Logging in...' : 'Login'}
           </button>
           <p className="text-center ">
             Join Our Mission?
